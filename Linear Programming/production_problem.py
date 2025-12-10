@@ -2,15 +2,13 @@
 import pulp
 
 
-def create_model():
+def create_model_explicit():
     """
     Creates and defines the linear optimization model.
 
     Returns:
         myModel (pulp.LpProblem): The formulated linear programming problem.
     """
-    # Initialize the problem for maximization
-    myModel = pulp.LpProblem(name='Production_Problem', sense=pulp.LpMaximize)
 
     # Define decision variables:
     # x1 and x2 represent the quantities of products 1 and 2 to produce
@@ -18,22 +16,58 @@ def create_model():
     x1 = pulp.LpVariable(name='x1', lowBound=0)
     x2 = pulp.LpVariable(name='x2', lowBound=0)
 
+    # Initialize the problem for maximization
+    myModel = pulp.LpProblem(name='Production_Problem_Explicit', sense=pulp.LpMaximize)
+
     # Objective function: Maximize profit
     # Profit contributions from each product
-    myModel += 3 * x1 + 5 * x2, "Total_Profit"
+    myModel += 3 * x1 + 5 * x2, 'Total_Profit'
 
     # Constraints:
     # Machine 1 capacity constraint
-    myModel += x1 <= 4, "Machine_1_Capacity"
+    myModel += x1 <= 4, 'Machine_1_Capacity'
 
     # Machine 2 capacity constraint
-    myModel += 2 * x2 <= 12, "Machine_2_Capacity"
+    myModel += 2 * x2 <= 12, 'Machine_2_Capacity'
 
     # Machine 3 capacity constraint
-    myModel += 3 * x1 + 2 * x2 <= 18, "Machine_3_Capacity"
+    myModel += 3 * x1 + 2 * x2 <= 18, 'Machine_3_Capacity'
 
     return myModel
 
+
+def create_model_generic():
+    """
+    Creates and defines a generic version of the original production problem using dictionaries.
+
+    Returns:
+        myModel (pulp.LpProblem): The formulated linear programming problem.
+    """
+
+    # Define sets
+    products = ['Product 1', 'Product 2']
+    machines = ['Machine 1', 'Machine 2', 'Machine 3']
+
+    # Define parameters
+    profit_per_product = {'Product 1': 3, 'Product 2': 5}
+    capacity_per_machine = {'Machine 1': 4, 'Machine 2': 12, 'Machine 3': 18}
+    process_time = {'Product 1': {'Machine 1': 1, 'Machine 2': 0, 'Machine 3': 3},
+                    'Product 2': {'Machine 1': 0, 'Machine 2': 2, 'Machine 3': 2},}
+
+    # Define decision variables
+    x = pulp.LpVariable.dict(name='x', indices=(products), lowBound=0)
+
+    # Initialize the problem for maximization
+    myModel = pulp.LpProblem(name='Production_Problem_Generic', sense=pulp.LpMaximize)
+
+    # Objective function: Maximize profit
+    myModel += pulp.lpSum(profit_per_product[i] * x[i] for i in profit_per_product), 'Total_Profit'
+
+    # Constraints:
+    for j in machines:
+        myModel += pulp.lpSum(x[i]*process_time[i][j] for i in products) <= capacity_per_machine[j], 'Machine_' + str(j) + '_Capacity'
+    
+    return myModel
 
 def solve_model_with_default_solver(myModel):
     """
@@ -98,15 +132,16 @@ def print_statistics(myModel):
 
 if __name__ == "__main__":
     # Solve the model using the default solver
-    print('Solve via default solver')
-    model = create_model()
-    solve_model_with_default_solver(model)
-    print_statistics(model)
+    # print('Solve via default solver')
+    # model = create_model_explicit()
+    # solve_model_with_default_solver(model)
+    # print_statistics(model)
 
     print()
 
     # Solve the model using CPLEX solver
     print('Solve via CPLEX')
-    model = create_model()
+    model = create_model_explicit()
+    model = create_model_generic()
     solve_model_with_cplex(model)
     print_statistics(model)
