@@ -1,13 +1,13 @@
 import pulp
 
 def create_model(
-    scenario_1=True,
-    scenario_2=True,
-    scenario_3=True,
-    scenario_4=True,
-    scenario_5=True,
-    scenario_6=True,
-    scenario_7=True
+    scenario_1=False,
+    scenario_2=False,
+    scenario_3=False,
+    scenario_4=False,
+    scenario_5=False,
+    scenario_6=False,
+    scenario_7=False
 ):
     """
     Creates a PuLP LP model for scheduling Smurfs considering multiple scenarios.

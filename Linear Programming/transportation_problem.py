@@ -310,6 +310,12 @@ def get_data_airfreight_transportation():
 
 
 def define_model_generic(S, s, D, d, c):
+    """
+    Creates and returns a generic linear programming model for the transportation problem.
+
+    Returns:
+        pulp.LpProblem: A PuLP linear programming problem object representing the model.
+    """
 
     # Define decision variables
     # x_origin_destination represent the quantities of shipped between the supply and demand location
@@ -334,6 +340,12 @@ def define_model_generic(S, s, D, d, c):
 
 
 def define_model_explicit_us():
+    """
+    Creates and returns an explicit linear programming model for the transportation problem.
+    
+    Returns:
+        pulp.LpProblem: A PuLP linear programming problem object representing the model.
+    """
 
     # Define decision variables:
     # x_origin_destination represent the quantities of shipped between the two locations
