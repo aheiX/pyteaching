@@ -413,8 +413,8 @@ if __name__ == "__main__":
     # print_statistics(myModel)
 
     # Generic version 
-    # S, s, D, d, c = get_data_us()           # US data
-    S, s, D, d, c = get_data_airfreight_transportation() # Airfreight Transportation Data
+    S, s, D, d, c = get_data_us()           # US data
+    # S, s, D, d, c = get_data_airfreight_transportation() # Airfreight Transportation Data
 
     myModel = define_model_generic(S, s, D, d, c)
     myModel.solve()

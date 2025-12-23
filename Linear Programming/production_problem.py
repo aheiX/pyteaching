@@ -61,12 +61,22 @@ def create_model_generic():
     myModel = pulp.LpProblem(name='Production_Problem_Generic', sense=pulp.LpMaximize)
 
     # Objective function: Maximize profit
-    myModel += pulp.lpSum(profit_per_product[i] * x[i] for i in profit_per_product), 'Total_Profit'
+    myModel += pulp.lpSum(profit_per_product[i] * x[i] for i in products), 'Total_Profit'
 
     # Constraints:
     for j in machines:
         myModel += pulp.lpSum(x[i]*process_time[i][j] for i in products) <= capacity_per_machine[j], 'Machine_' + str(j) + '_Capacity'
     
+    # # Solve
+    # myModel.solve()
+
+    # # Print statistics
+    # print('Status:', pulp.LpStatus[myModel.status])
+    # print('Objective Value:', pulp.value(myModel.objective))
+    # for i in products:
+    #     print(f" {i} = {pulp.value(x[i])}")
+    # print()
+
     return myModel
 
 def solve_model_with_default_solver(myModel):
