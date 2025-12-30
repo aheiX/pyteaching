@@ -3,11 +3,15 @@ def get_data_textbook():
     Creates the model-based data for the service dog example used in "The Art of Reinforcement Learning" by Michael Hu
 
     Returns:
+        states: The set of all possible configurations or observations of the environment that we can be in.
         policy: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
         reward: Reward of taking action 𝑎 in state 𝑠 
         transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
     """
     
+    # State space [𝒮]: The set of all possible configurations or observations of the environment that we can be in.
+    states = ["Room 1", "Room 2", "Room 3", "Outside", "Found item"]
+
     # Policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
     policy = {
         "Room 1": {"Go to room 2": 1.0},
@@ -41,15 +45,16 @@ def get_data_textbook():
         ("Outside", "Go inside"): {"Room 2": 1.0} 
     }
 
-    return policy, reward, transition_prob
+    return states, policy, reward, transition_prob
 
 
-def policy_evaluation(policy, reward, transition_prob, discount, delta_threshold=0.00001):
+def policy_evaluation(states, policy, reward, transition_prob, discount, delta_threshold=0.00001):
     """
     Given a policy function, reward function, transition probability function, discount factor and a delta threshold,
     using dynamic programming to estimate the state-value function for this policy.
 
     Args:
+        states: State space 𝒮
         policy: Policy we want to evaluate. The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
         reward: Reward of taking action 𝑎 in state 𝑠 
         transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′. There may be multiple successor states.
@@ -59,9 +64,6 @@ def policy_evaluation(policy, reward, transition_prob, discount, delta_threshold
 
     # Initialize counter
     count = 0
-
-    # Intialize set of states
-    states = policy.keys()    
     
     # Initialize state value function to be all zeros for all states.
     V = {s: 0 for s in states}
@@ -98,12 +100,13 @@ def policy_evaluation(policy, reward, transition_prob, discount, delta_threshold
     print(f"State value function after {count} iterations: {V}")
 
 
-def value_iteration(reward, transition_prob, discount, delta_threshold=0.00001):
+def value_iteration(states, reward, transition_prob, discount, delta_threshold=0.00001):
     """
     Given a policy function, reward function, transition probability function, discount factor and a delta threshold,
     find a optimal policy 𝜋* along with optimal state value function V*.
 
     Args:
+        states: State space 𝒮
         reward: Reward of taking action 𝑎 in state 𝑠 
         transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′. There may be multiple successor states.
         discount: discount factor, must be 0 <= discount <= 1.
@@ -113,9 +116,11 @@ def value_iteration(reward, transition_prob, discount, delta_threshold=0.00001):
     # Initialize counter
     count = 0
 
-    # Intialize set of states
-    states = policy.keys()    
-    
+    # Initialize & retrieve legal actions from reward function
+    legal_actions = {state: [] for state in states}
+    for (state, action) in reward.keys():
+        legal_actions[state].append(action)
+
     # Initialize state value function to be all zeros for all states.
     V = {s: 0 for s in states}
 
@@ -127,7 +132,7 @@ def value_iteration(reward, transition_prob, discount, delta_threshold=0.00001):
             estimated_returns = [0]
 
             # For every legal action
-            for action, action_prob in policy[state].items():   
+            for action in legal_actions[state]:   
                                
                 # Immediate reward
                 g = reward[(state, action)]
@@ -155,7 +160,7 @@ def value_iteration(reward, transition_prob, discount, delta_threshold=0.00001):
         estimated_returns = {}
 
         # For every legal action
-        for action, action_prob in policy[state].items():   
+        for action in legal_actions[state]:   
                             
             # Immediate reward
             g = reward[(state, action)]
@@ -184,11 +189,7 @@ def value_iteration(reward, transition_prob, discount, delta_threshold=0.00001):
 
 
 if __name__ == "__main__":
-    policy, reward, transition_prob = get_data_textbook()
+    states, policy, reward, transition_prob = get_data_textbook()
 
-    # from service_dog_problem_data import get_data_task_2, get_data_task_3
-    # policy, reward, transition_prob = get_data_task_2()
-    # policy, reward, transition_prob = get_data_task_3()
-    
-    policy_evaluation(policy, reward, transition_prob, discount=0.9)
-    value_iteration(reward, transition_prob, discount=0.9)
+    policy_evaluation(states, policy, reward, transition_prob, discount=0.9)
+    value_iteration(states, reward, transition_prob, discount=0.9)

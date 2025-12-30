@@ -4,10 +4,14 @@ def get_data_task_2():
     Creates the model-based data for the service dog problem based on "The Art of Reinforcement Learning" by Michael Hu
 
     Returns:
+        states: The set of all possible configurations or observations of the environment that we can be in.
         policy: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
         reward: Reward of taking action 𝑎 in state 𝑠 
         transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
     """
+    
+    # State space [𝒮]: The set of all possible configurations or observations of the environment that we can be in.
+    states = ["Room 1", "Room 2", "Room 3", "Outside", "Found item"]
     
     # Policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
     policy = {
@@ -42,7 +46,7 @@ def get_data_task_2():
         ("Outside", "Go inside"): {"Room 2": 1.0} 
     }
 
-    return policy, reward, transition_prob
+    return states,policy, reward, transition_prob
 
 
 def get_data_task_3():
@@ -50,10 +54,14 @@ def get_data_task_3():
     Creates the model-based data for the service dog example based on "The Art of Reinforcement Learning" by Michael Hu
 
     Returns:
+        states: The set of all possible configurations or observations of the environment that we can be in.
         policy: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
         reward: Reward of taking action 𝑎 in state 𝑠 
         transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
     """
+    
+    # State space [𝒮]: The set of all possible configurations or observations of the environment that we can be in.
+    states = ["Room 1", "Room 2", "Room 3", "Room 4", "Outside", "Found item"]
     
     # Policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
     policy = {
@@ -99,4 +107,18 @@ def get_data_task_3():
         ("Outside", "Go inside"): {"Room 2": 1.0}  
         }
     
-    return policy, reward, transition_prob
+    return states, policy, reward, transition_prob
+
+
+
+if __name__ == "__main__":
+
+    from service_dog_problem_model_based import policy_evaluation, value_iteration, get_data_textbook
+
+    states, policy, reward, transition_prob = get_data_textbook()
+    states, policy, reward, transition_prob = get_data_task_2()
+    states, policy, reward, transition_prob = get_data_task_3()
+
+    # print(policy)
+    policy_evaluation(states, policy, reward, transition_prob, discount=0.9)
+    value_iteration(states, reward, transition_prob, discount=0.2)

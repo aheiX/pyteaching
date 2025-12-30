@@ -2,9 +2,9 @@ from typing import Optional
 import gymnasium as gym
 import numpy as np
 from gymnasium.utils.env_checker import check_env
-import random
 import statistics
 import math
+from service_dog_problem_model_free_data import get_data_textbook
 
 
 class ServiceDogEnvGym(gym.Env):
@@ -160,55 +160,44 @@ class ServiceDogEnvGym(gym.Env):
 
 class ServiceDogEnv():
 
-    def __init__(self):
-        # Define what the agent can observe (state space)
-        self.observation_space = ["Room 1", "Room 2", "Room 3", "Outside", "Found item"]
+    def __init__(self, legal_actions, reward, transition_prob, seed=None):
 
-        # Define what actions are available (action space)
-        self.action_space = ["Go to room 1", "Go to room 2", "Go to room 3", "Go outside", "Go inside", "Search"]
-        
+        # Initialize environment's random generator
+        self.rnd_generator = np.random.default_rng(seed=seed)
+
+        # Legal actions [𝒜(𝑠)]: Set of legal actions for a state 𝑠     
+        self.legal_actions = legal_actions
+
+        # Reward [R(s,a)]: Reward of taking action 𝑎 in state 𝑠 
+        self.reward = reward
+
+        # Transition probability [P(s'|s,a)]: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
+        # depends on the current state 𝑠 and the action 𝑎 chosen by the agent. There may be multiple successor states.
+        self.transition_prob = transition_prob
+
     def _get_obs(self):
-        """Convert internal state to observation format.
-
-        Returns:
-            Observation is the dog's position
-        """
-
-        return self._dog_location
-
-    def _get_info(self):
-        """Compute auxiliary information for debugging.
+        """Convert internal envirnment state to observation format.
 
         Returns:
             Observation with dog position
         """
 
-        return {"dog location": self._dog_location, "step": self._step_counter}
+        return self._dog_location
+    
+    def _get_info(self):
+        """Compute auxiliary information for debugging.
 
-    def _get_legal_actions(self, obs=None):
-        
-        if obs is None:
-            obs = self._get_obs()
+        Returns:
+            Some information
+        """
 
-        if obs == "Room 1":
-            legal_actions = ["Go to room 2"]
-        elif obs == "Room 2":
-            legal_actions = ["Go to room 1", "Go to room 3", "Go outside"]
-        elif obs == "Room 3":
-            legal_actions = ["Go to room 2", "Search"]
-        elif obs == "Outside":
-            legal_actions = ["Go inside", "Go outside"]
-        else:
-            legal_actions = []
-
-        # legal_actions = ["Go to room 1", "Go to room 2", "Go to room 3", "Go outside", "Go inside", "Search"]
-        return legal_actions
-
+        return self._dog_location
+  
     def reset(self):
         """Start a new episode.
 
         Returns:
-            tuple: (observation, info) for the initial state
+            tuple: (observation, info) for the initial period
         """
        
         # Initial location of the dog
@@ -217,10 +206,10 @@ class ServiceDogEnv():
         # Initialize step counter
         self._step_counter = 0
 
-        observation = self._get_obs()
+        obs = self._get_obs()
         info = self._get_info()
 
-        return observation, info
+        return obs, info
 
     def step(self, action):
         """The step() method contains the core environment logic. 
@@ -229,49 +218,19 @@ class ServiceDogEnv():
             action: The action to take
 
         Returns:
-            tuple: (observation, reward, terminated, truncated, info)
+            tuple: (obs, reward, terminated, truncated, info)
         """
-        # Update dog's position for legal actions and reward. For illegal actions, the dog remains at its current position.
-        reward = 0
-        if self._dog_location == "Room 1":
-            if action == "Go to room 2":
-                # update dog's location & reward
-                self._dog_location = "Room 2"
-                reward = -1
-        elif self._dog_location == "Room 2":
-            if action == "Go to room 1":
-                # update dog's location & reward
-                self._dog_location = "Room 1"
-                reward = -2     
-            elif action == "Go to room 3":
-                # update dog's location & reward
-                self._dog_location = "Room 3"
-                reward = -1     
-            elif action == "Go outside":
-                # update dog's location & reward
-                self._dog_location = "Outside"
-                reward = 0   
-        elif self._dog_location == "Room 3":
-            if action == "Go to room 2":
-                # update dog's location & reward
-                self._dog_location = "Room 2"
-                reward = -2   
-            elif action == "Search":
-                # update dog's location & reward
-                self._dog_location = "Found item"
-                reward = 10
-        elif self._dog_location == "Outside":
-            if action == "Go inside":
-                # update dog's location & reward
-                self._dog_location = "Room 2"
-                reward = 0     
-            elif action == "Go outside":
-                # update dog's location & reward
-                self._dog_location = "Room 3"
-                reward = -1
-      
-        # Discount reward
-        reward = reward * math.pow(0.9, self._step_counter)
+
+        # Get current observation
+        obs = self._get_obs()
+
+        # Compute reward
+        reward = self.reward[(obs, action)]
+
+        # Update dog's position
+        _transition_prob = self.transition_prob[(obs, action)]
+
+        self._dog_location = self.rnd_generator.choice(a=list(_transition_prob.keys()), p=list(_transition_prob.values()))
 
         # Update step counter
         self._step_counter += 1
@@ -282,27 +241,44 @@ class ServiceDogEnv():
         # Check if episode reached step limit
         truncated = True if self._step_counter >= 500 else False
 
-        observation = self._get_obs()
+        obs = self._get_obs()
         info = self._get_info()
 
-        return observation, reward, terminated, truncated, info
+        return obs, reward, terminated, truncated, info
+  
+    def _get_legal_actions(self):
+        """This method contains returns a list of legal actions for the current observation. 
 
-    def check(self):
-        # This will catch many common issues
-        try:
-            check_env(self)
-            print("Environment passes all checks!")
-        except Exception as e:
-            print(f"Environment has issues: {e}")
-                  
+        Args:
+            action: The action to take
 
-class ServiceDogPolicyRandom():
+        Returns:
+            List of legal actions
+        """
+        
+        return self.legal_actions[self._get_obs()]
+
+class PolicyRandom():
     
-    def __init__(self):
-        """Initialize a policy by defining all parameters and variables (e.g., Q-table, learning rate)
+    def __init__(self, seed=None):
+        """Initialize a random policy by explicitly defining the state-action probabilities
+
+        Args:
+            seed: An integer number to set the policy's random generator for reproducible results. Default: None will randomly set a seed. 
 
         """        
-        pass
+        # Initialize policy's random generator
+        self.rnd_generator = np.random.default_rng(seed=seed)
+
+
+        # Define random policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
+        self.policy = {
+            "Room 1": {"Go to room 2": 1.0},
+            "Room 2": {"Go to room 1": 1/3, "Go to room 3": 1/3, "Go outside": 1/3},
+            "Room 3": {"Go to room 2": 0.5, "Search": 0.5},
+            "Outside": {"Go inside": 0.5, "Go outside": 0.5},
+            "Found item": {}
+        }
     
     def _get_action(self, env):
         """Returns an action based on the policy
@@ -311,129 +287,235 @@ class ServiceDogPolicyRandom():
             env: The environment action is taken in
 
         """
-        legal_actions = env._get_legal_actions()
-        action = random.choice(legal_actions)
-        print(action)
-        # print(env._get_obs(), legal_actions)
-        
-        return action
-    
 
-    def test(self, env, num_episodes=1):
-        """ A method to test the policy 
+        # Get current state from environment 
+        state = env._get_obs()
+
+        # Select the state's policy
+        state_policy = self.policy[state]
+
+        # Select action based on state policy's probabilities
+        action = self.rnd_generator.choice(a=list(state_policy.keys()), p=list(state_policy.values()))
+        
+        # Print state -> action for debugging
+        # print(f"{state} -> {action}")
+
+        return action
+
+
+class PolicyTD():
+
+    def __init__(self):
+        self.Q = dict()
+
+        # Optimal Q-Values (see Fig. 3.5 in "The Art of Reinforcement Learning" by Michael Hu)
+        self.Q = {
+            "Room 1": {"Go to room 2": 6.2},
+            "Room 2": {"Go to room 1": 3.6, "Go to room 3": 8.0, "Go outside": 6.5},
+            "Room 3": {"Go to room 2": 5.2, "Search": 10},
+            "Outside": {"Go outside": 4.8, "Go inside": 7.2}
+        }
+
+    def _get_action(self, env, epsilon=0):
+        """Returns an action based on the policy
 
         Args:
-            env: The environment
+            env: The environment action is taken in
 
         """
-        total_reward_history = []
+        legal_actions = env._get_legal_actions()
+        state = env._get_obs()
 
-        for episode in range(num_episodes):
+        # print(f"state: {state}, legal action: {legal_actions}")
 
-            observation, info = env.reset()
+        if epsilon > 0 and np.random.rand() < epsilon:
+            action = np.random.choice(legal_actions)
+        else:
+            
+            if state not in self.Q:
+                self.Q[state] = {}
 
-            episode_over = False
-            total_reward = 0
-            obs_sequence = []
+            for a in legal_actions:
+                if a not in self.Q[state]:
+                    self.Q[state][a] = 0
 
-            while not episode_over:
-
-                # Choose an action
-                action = self._get_action(env)
-
-                # Take the action and see what happens (transition)
-                observation, reward, terminated, truncated, info = env.step(action)
-
-                obs_sequence.append(observation)
-                total_reward += reward
-                episode_over = terminated or truncated
-
-            total_reward_history.append(total_reward)
-            # print(f"Episode {episode} finished: Total reward: {total_reward} after {len(obs_sequence)} steps.")
+            action = max(self.Q[state], key=self.Q[state].get)
         
-        # Print descriptive statistics
-        print(f"Rewards ({len(total_reward_history)} episodes): avg={round(statistics.mean(total_reward_history), 2)}, std. dev.={round(statistics.stdev(total_reward_history), 2)}, min={round(min(total_reward_history), 2)}, max={round(max(total_reward_history), 2)}")
-        # print(total_reward_history)
+        return str(action)
+
+    def _learn(self, env, discount, epsilon, learning_rate, num_updates, on_policy=True):
+        """Q-learning off-policy algorithm.
+
+        Args:
+            env: a reinforcement learning environment, must have get_states(), reset(), and step() methods.
+            discount: discount factor, must be 0 <= discount <= 1.
+            epsilon: exploration rate for the e-greedy policy, must be 0 <= epsilon < 1.
+            learning_rate: the learning rate when update step size
+            num_updates: number of updates to the value function.
+
+        Returns:
+            policy: the optimal policy based on the estimated (possible optimal) after run the search for num_updates.
+            Q: the estimated (possible optimal) state-action value function.
+        """
+
+        assert 0.0 <= discount <= 1.0
+        assert 0.0 <= epsilon <= 1.0
+        assert isinstance(num_updates, int)
+
+        # Initialize state-action value function
+        print(f"Optimal Q: {self.Q}")
+        self.Q = dict()
+
+        i = 0
+
+        state, info = env.reset()
+        while i < num_updates:
+            # print(self.Q)
+            # Sample an action for state when following the e-greedy policy.
+            action = self._get_action(env, epsilon)
+
+            # Take the action in the environment and observe successor state and reward.
+            state_tp1, reward, terminated, truncated, info = env.step(action)
+
+            # Learning        
+            delta = reward
+
+            if not terminated and not truncated:
+                # TP 1 action: On-policy = SARSA, Off-Policy = Q-Learning
+                action_tp1 = self._get_action(env) if on_policy else self._get_action(env, epsilon=0)
+
+                # Learning (second part, downstream reward)
+                self.Q[state_tp1] = self.Q.get(state_tp1, {})
+                self.Q[state_tp1][action_tp1] = self.Q[state_tp1].get(action_tp1, 0)
+                delta += discount * self.Q[state_tp1][action_tp1]
+
+            
+            self.Q[state] = self.Q.get(state, {})
+            self.Q[state][action] = self.Q[state].get(action, 0) + learning_rate * (delta - self.Q[state].get(action, 0))
+
+            if terminated or truncated:
+                state, info = env.reset()
+
+            i += 1
+
+        for s in self.Q:
+            for a in self.Q[s]:
+                self.Q[s][a] = round(self.Q[s][a], 4)
+
+        print(self.Q)
 
 
-def policy_evaluation(discount=0.9, delta_threshold=0.001):
-    """
-    Given a policy, and state value function, using dynamic programming to
-    estimate the state-value function for this policy.
+def compute_returns(rewards, discount):
+    """Compute returns for every time step in the episode trajectory.
 
     Args:
-        env: a MDP environment.
-        policy: policy we want to evaluate.
-        V: state value function for the input policy.
+        rewards: a list of rewards from an episode.
         discount: discount factor, must be 0 <= discount <= 1.
-        delta_threshold: the threshold determining the accuracy of the estimation.
 
     Returns:
-        estimated state value function for the input policy.
-
+        returns: return for every single time step in the episode trajectory.
     """
+    assert 0.0 <= discount <= 1.0
 
-    count = 0
-    states = ["Room 1", "Room 2", "Room 3", "Outside", "Found item"]
-    legal_actions = {
-        "Room 1": ["Go to room 2"],
-        "Room 2": ["Go to room 1", "Go to room 3", "Go outside"],
-        "Room 3": ["Go to room 2", "Search"],
-        "Outside": ["Go inside", "Go outside"],
-        "Found item": []
-    }
+    returns = []
+    G_t = 0
+    # We do it backwards so it's more efficient and easier to implement.
+    for t in reversed(range(len(rewards))):
+        G_t = rewards[t] + discount * G_t
+        returns.append(G_t)
+    returns.reverse()
 
-    reward = {("Room 1", "Go to room 2"): -1,
-              ("Room 2", "Go to room 1"): -2,
-              ("Room 2", "Go to room 3"): -1,
-              ("Room 2", "Go outside"): 0,
-              ("Room 3", "Go to room 2"): -2,
-              ("Room 3", "Search"): 10,
-              ("Outside", "Go outside"): -2,    # =-1 in textbook
-              ("Outside", "Go inside"): 0              
-              }
-    
-    successor_state = {"Go to room 1": "Room 1",
-                       "Go to room 2": "Room 2",
-                       "Go to room 3": "Room 3",
-                       "Go outside": "Outside",
-                       "Go inside": "Room 2",
-                       "Search": "Found item"}
+    return returns
 
-    # Initialize state value function to be all zeros for all states.
-    V = {s: 0 for s in states}
 
-    while True:
-        delta = 0
-        for state in states:
-            old_v = V[state]
-            new_v = 0
-            for action in legal_actions[state]:  # For every legal action
-                g = 0
-                pi_prob = 1/len(legal_actions[state])
+def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True):
+    """Run Monte Carlo policy evaluation for state value function.
 
-                g += reward[(state, action)]
+    Args:
+        env: a reinforcement learning environment, must have get_states(), reset(), and step() methods.
+        policy: the policy that we want to evaluate.
+        discount: discount factor, must be 0 <= discount <= 1.
+        num_episodes: number of episodes to run.
+        first_visit: use first-visit MC, default on.
 
-                g += discount * V[successor_state[action]]
+    Returns:
+        V: the estimated state value function for the input policy after run evaluation for num_episodes.
+    """
+    assert 0.0 <= discount <= 1.0
+    assert isinstance(num_episodes, int)
 
-                # Weight by the probability of selecting this action when following the policy
-                new_v += pi_prob * g
-            V[state] = new_v
-            delta = max(delta, abs(old_v - new_v))
+    # Initialize
+    N = dict()  # counter for visits number
+    V = dict()  # state value function
+    G = dict()  # total returns
 
-        count += 1
-        if delta < delta_threshold:
-            break
-    print(V)
-    return V
+    for _ in range(num_episodes):
+        # Sample an episode trajectory using the given policy.
+        episode = []
+        state, info = env.reset()
+        while True:
+            # Get action when following the policy.
+            action = policy._get_action(env)
+
+            # Take the action in the environment and observe successor state and reward.
+            state_tp1, reward, terminated, truncated, info = env.step(action)
+            episode.append((state, action, reward))
+            state = state_tp1
+            if terminated or truncated:
+                # if truncated:
+                #     print("truncated")
+                break
+
+        # Unpack list of tuples into separate lists.
+        # print(episode)
+        states, _, rewards = map(list, zip(*episode))
+
+        # Compute returns for every time step in the episode.
+        returns = compute_returns(rewards, discount)
+
+        # Loop over all state in the episode.
+        for t, state in enumerate(states):
+            G_t = returns[t]
+            # Check if this is the first time state visited in the episode.
+            if first_visit and state in states[:t]:
+                continue
+
+            N[state] = N.get(state, 0) + 1
+            G[state] = G.get(state, 0) + G_t
+            V[state] = G[state] / N[state]
+
+    # Round state value function
+    for state in V:
+        V[state] = round(V[state], 2)
+
+    print(f"State value function after {num_episodes} iterations: {V}")
 
 if __name__ == "__main__":
 
-    policy_evaluation()
+    legal_actions, reward, transition_prob = get_data_textbook()
 
-    # env = ServiceDogEnv()
-    # policy = ServiceDogPolicyRandom()
+    env = ServiceDogEnv(legal_actions, reward, transition_prob)
+    policy = PolicyRandom(seed=2506)
+    # policy = PolicyTD()
+    # policy._learn(env, discount=0.9, epsilon=0.3, learning_rate=0.01, num_updates=10000, on_policy=False)
+
+    # mc_policy_evaluation(env, policy, discount=0.9, num_episodes=2000, first_visit=True)
+
+    # Reset environment
+    env.reset()
+
+    # Print information
+    print(f"Observation: {env._get_obs()}, info: {env._get_info()}")
     
+    # Select action
+    action = policy._get_action(env)
+    
+    # Transition via dynamic model/function
+    env.step(action)
+
+    # Print information
+    print(f"Observation: {env._get_obs()}, info: {env._get_info()}")
+
     # policy.test(env=env, num_episodes=10000)
 
     # # Create model
