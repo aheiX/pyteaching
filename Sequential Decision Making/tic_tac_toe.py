@@ -281,8 +281,8 @@ if __name__ == "__main__":
     # env.check()
     
     # Play against each other (both via console input)
-    # play(env=EnvTicTacToe(), opponents_policy=None)
+    play(env=EnvTicTacToe(), opponents_policy=None)
 
     # Play against a computer following a random strategy. You should win every game. 
-    policy = PolicyRandom()     
-    play(env=EnvTicTacToe(), opponents_policy=policy)
+    # policy = PolicyRandom()     
+    # play(env=EnvTicTacToe(), opponents_policy=policy)
