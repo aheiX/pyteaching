@@ -2,168 +2,57 @@ from typing import Optional
 import gymnasium as gym
 import numpy as np
 from gymnasium.utils.env_checker import check_env
-import statistics
-import math
-from service_dog_problem_model_free_data import get_data_textbook
+import copy
 
 
-class ServiceDogEnvGym(gym.Env):
+def get_data_textbook():
+    """
+    Creates the model-free data for the service dog example used in "The Art of Reinforcement Learning" by Michael Hu
 
-    def __init__(self):
-        super().__init__()
+    Returns:
+        reward: Reward of taking action 𝑎 in state 𝑠 
+        transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
+        legal_actions: Legal actions [𝒜(𝑠)]: Set of legal actions for a state 𝑠
+    """
+    # Reward [R(s,a)]: Reward of taking action 𝑎 in state 𝑠 
+    reward = {("Room 1", "Go to room 2"): -1,
+              ("Room 2", "Go to room 1"): -2,
+              ("Room 2", "Go to room 3"): -1,
+              ("Room 2", "Go outside"): 0,
+              ("Room 3", "Go to room 2"): -2,
+              ("Room 3", "Search"): 10,
+              ("Outside", "Go outside"): -1,    # =-1 in textbook figure, but =-2 in textbook GitHub code (and used for textbook values)
+              ("Outside", "Go inside"): 0              
+              }
 
-        # Define what the agent can observe (state space)
-        self.observation_space = gym.spaces.Discrete(5)
+    # Transition probability [P(s'|s,a)]: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
+    # depends on the current state 𝑠 and the action 𝑎 chosen by the agent. There may be multiple successor states.
+    transition_prob = {
+        ("Room 1", "Go to room 2"): {"Room 2": 1.0},
+        ("Room 2", "Go to room 1"): {"Room 1": 1.0},
+        ("Room 2", "Go to room 3"): {"Room 3": 1.0},
+        ("Room 2", "Go outside"): {"Outside": 1.0},
+        ("Room 3", "Go to room 2"): {"Room 2": 1.0},
+        ("Room 3", "Search"): {"Found item": 1.0},
+        ("Outside", "Go outside"): {"Outside": 1.0},   
+        ("Outside", "Go inside"): {"Room 2": 1.0} 
+    }
 
-        # Map observation numbers to actual observation names
-        # This makes the code more readable than using raw numbers
-        self._observation_to_room = {
-            0: "Room 1", 
-            1: "Room 2",
-            2: "Room 3",
-            3: "Outside",
-            4: "Found item"
-        }
-        # Create reverse mapping
-        self._room_to_observation = {v: k for k, v in self._observation_to_room.items()}
+    # Legal actions [𝒜(𝑠)]: Set of legal actions for a state 𝑠
+    legal_actions = {
+        "Room 1": ["Go to room 2"],
+        "Room 2": ["Go to room 1", "Go to room 3", "Go outside"],
+        "Room 3": ["Go to room 2", "Search"],
+        "Outside": ["Go inside", "Go outside"],
+        "Found item": []
+    }
 
-        # Define what actions are available (action space)
-        self.action_space = gym.spaces.Discrete(6)
-
-        # Map action numbers to actual movements
-        # This makes the code more readable than using raw numbers
-        self._action_to_direction = {
-            0: "Go to room 1", 
-            1: "Go to room 2",
-            2: "Go to room 3",
-            3: "Go outside",
-            4: "Go inside",
-            5: "Search"
-        }
-        # Create reverse mapping
-        self._direction_to_action = {v: k for k, v in self._action_to_direction.items()}
-    
-    def _get_obs(self):
-        """Convert internal state to observation format.
-
-        Returns:
-            Observation with dog position
-        """
-
-        return self._dog_location
-
-    def _get_info(self):
-        """Compute auxiliary information for debugging.
-
-        Returns:
-            Observation with dog position
-        """
-
-        return {"dog location": self._dog_location}
-
-    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-        """Start a new episode.
-
-        Args:
-            seed: Random seed for reproducible episodes
-            options: Additional configuration (unused in this example)
-
-        Returns:
-            tuple: (observation, info) for the initial state
-        """
-        # IMPORTANT: Must call this first to seed the random number generator
-        super().reset(seed=seed)
-
-        # Randomly place the dog in one of the four locations
-        self._dog_location = self.np_random.integers(0, 3, dtype=int)
-        # self._dog_location = self._room_to_observation["Room 1"]
-
-        observation = self._get_obs()
-        info = self._get_info()
-
-        return observation, info
-
-    def step(self, action):
-        """The step() method contains the core environment logic. It takes an action, updates the environment state, and returns the results. 
-           This is where the physics, game rules, and reward logic live.
-           The step() method execute one timestep within the environment.
-
-        Args:
-            action: The action to take
-
-        Returns:
-            tuple: (observation, reward, terminated, truncated, info)
-        """
-        # Map the discrete action to a movement direction
-        direction = self._action_to_direction[action]
-        dog_location = self._observation_to_room[self._dog_location]
-
-        # Update dog's position for legal actions. For illegal actions, the dog remains at its current position
-        reward = 0
-        if dog_location == "Room 1":
-            if direction == "Go to room 2":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Room 2"]
-                reward = -1
-        elif dog_location == "Room 2":
-            if direction == "Go to room 1":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Room 1"]
-                reward = -2     
-            elif direction == "Go to room 3":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Room 3"]
-                reward = -1     
-            elif direction == "Go outside":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Outside"]
-                reward = 0   
-        elif dog_location == "Room 3":
-            if direction == "Go to room 2":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Room 2"]
-                reward = -2   
-            elif direction == "Search":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Found item"]
-                reward = 10
-        elif dog_location == "Outside":
-            if direction == "Go inside":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Room 2"]
-                reward = 0     
-            elif direction == "Go outside":
-                # update dog's location & reward
-                self._dog_location = self._room_to_observation["Room 3"]
-                reward = -1
-
-        # Check if agent reached the target        
-        terminated = True if self._observation_to_room[self._dog_location] == "Found item" else False
-
-        # We don't use truncation in this simple environment
-        # (could add a step limit here if desired)
-        truncated = False
-
-        observation = self._get_obs()
-        info = self._get_info()
-
-        return observation, reward, terminated, truncated, info
-
-    def check(self):
-        # This will catch many common issues
-        try:
-            check_env(self)
-            print("Environment passes all checks!")
-        except Exception as e:
-            print(f"Environment has issues: {e}")
+    return legal_actions, reward, transition_prob
 
 
-class ServiceDogEnv():
+class EnvServiceDog():
 
-    def __init__(self, legal_actions, reward, transition_prob, seed=None):
-
-        # Initialize environment's random generator
-        self.rnd_generator = np.random.default_rng(seed=seed)
+    def __init__(self, legal_actions, reward, transition_prob):
 
         # Legal actions [𝒜(𝑠)]: Set of legal actions for a state 𝑠     
         self.legal_actions = legal_actions
@@ -175,31 +64,42 @@ class ServiceDogEnv():
         # depends on the current state 𝑠 and the action 𝑎 chosen by the agent. There may be multiple successor states.
         self.transition_prob = transition_prob
 
+        # Dog location = observation = state
+        self._dog_location = None   # Will be initialized in self.reset()
+
+        # Random generator
+        self.np_random = None # Will be initialized in self.reset()
+
+        # Step counter
+        self._step_counter = None # Will be initialized in self.reset()
+
     def _get_obs(self):
-        """Convert internal envirnment state to observation format.
+        """Convert internal environment state to observation format.
 
         Returns:
-            Observation with dog position
+            Observation = dog location as string
         """
 
-        return self._dog_location
+        return str(self._dog_location)
     
     def _get_info(self):
         """Compute auxiliary information for debugging.
 
         Returns:
-            Some information
+            Information about the dog's location and the step counter (of the current episode)
         """
 
-        return self._dog_location
+        return {"dog location": self._dog_location, "step": self._step_counter}
   
-    def reset(self):
+    def reset(self, seed: Optional[int] = None):
         """Start a new episode.
 
         Returns:
             tuple: (observation, info) for the initial period
         """
-       
+        # Reset random generator
+        self.np_random = np.random.default_rng(seed=seed)
+
         # Initial location of the dog
         self._dog_location = "Room 1"
 
@@ -227,30 +127,28 @@ class ServiceDogEnv():
         # Compute reward
         reward = self.reward[(obs, action)]
 
-        # Update dog's position
+        # Update dog's location
         _transition_prob = self.transition_prob[(obs, action)]
-
-        self._dog_location = self.rnd_generator.choice(a=list(_transition_prob.keys()), p=list(_transition_prob.values()))
+        self._dog_location = str(self.np_random.choice(a=list(_transition_prob.keys()), 
+                                                            p=list(_transition_prob.values())))
 
         # Update step counter
         self._step_counter += 1
 
+        # Get observation and info
+        obs = self._get_obs()
+        info = self._get_info()
+
         # Check if agent reached the target        
-        terminated = True if self._dog_location == "Found item" else False
+        terminated = True if obs == "Found item" else False
 
         # Check if episode reached step limit
         truncated = True if self._step_counter >= 500 else False
 
-        obs = self._get_obs()
-        info = self._get_info()
-
         return obs, reward, terminated, truncated, info
   
     def _get_legal_actions(self):
-        """This method contains returns a list of legal actions for the current observation. 
-
-        Args:
-            action: The action to take
+        """This method returns a list of legal actions for the current observation. 
 
         Returns:
             List of legal actions
@@ -258,47 +156,165 @@ class ServiceDogEnv():
         
         return self.legal_actions[self._get_obs()]
 
-class PolicyRandom():
+
+class EnvServiceDogGym(gym.Env):
+
+    def __init__(self, legal_actions, reward, transition_prob):
+
+        # Initialize from gymansium environment
+        super().__init__()
+       
+        # Legal actions [𝒜(𝑠)]: Set of legal actions for a state 𝑠     
+        self.legal_actions = legal_actions
+
+        # Reward [R(s,a)]: Reward of taking action 𝑎 in state 𝑠 
+        self.reward = reward
+
+        # Transition probability [P(s'|s,a)]: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
+        # depends on the current state 𝑠 and the action 𝑎 chosen by the agent. There may be multiple successor states.
+        self.transition_prob = transition_prob
+
+        # Dog location = observation = state
+        self._dog_location = None   # Will be initialized in self.reset()
+
+        # Step counter
+        self._step_counter = None   # Will be initialized in self.reset()
+
+        # Define what the agent can observe.        
+        self.observation_space = gym.spaces.Discrete(len(self.legal_actions.keys()))
+
+        # Map observation numbers to actual observation names to make the code more readable than using raw numbers.
+        self._observation_to_room = {id: state for id, state in enumerate(self.legal_actions.keys())}
+        self._room_to_observation = {state: id for id, state in self._observation_to_room.items()}  # Create reverse mapping
+
+        # Define what actions are available (action space)
+        all_actions = {a for actions in self.legal_actions.values() for a in actions}
+        self.action_space = gym.spaces.Discrete(len(all_actions))
+
+        # Map action numbers to actual movements to make the code more readable than using raw numbers.
+        self._action_to_direction = {id: action for id, action in enumerate(all_actions)}        
+        self._direction_to_action = {action: id for id, action in self._action_to_direction.items()}    # Create reverse mapping
+        
+    def _get_obs(self):
+        """Convert internal environment state to observation format.
+
+        Returns:
+            Observation = dog location as integer
+        """
+
+        return self._dog_location
     
-    def __init__(self, seed=None):
-        """Initialize a random policy by explicitly defining the state-action probabilities
+    def _get_info(self):
+        """Compute auxiliary information for debugging.
+
+        Returns:
+            Information about the dog's location and the step counter (of the current episode)
+        """
+
+        return {"dog location": self._dog_location, "step": self._step_counter}
+  
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        """Start a new episode.
+
+        Returns:
+            tuple: (observation, info) for the initial period
+        """
+        # IMPORTANT: Must call this first to seed the random number generator (called via self.np_random)
+        super().reset(seed=seed)
+
+        # Initial location of the dog
+        self._dog_location = self._room_to_observation["Room 1"]
+
+        # Initialize step counter
+        self._step_counter = 0
+
+        obs = self._get_obs()
+        info = self._get_info()
+
+        return obs, info
+
+    def step(self, action):
+        """The step() method contains the core environment logic. 
 
         Args:
-            seed: An integer number to set the policy's random generator for reproducible results. Default: None will randomly set a seed. 
+            action: The action to take as string
 
-        """        
-        # Initialize policy's random generator
-        self.rnd_generator = np.random.default_rng(seed=seed)
+        Returns:
+            tuple: (obs, reward, terminated, truncated, info)
+        """
+
+        # Get current observation and action as readable values
+        obs = self._observation_to_room[self._get_obs()]
+        if isinstance(action, (int, np.integer)):
+            action = self._action_to_direction[action]
+
+        # Compute reward
+        reward = self.reward.get((obs, action), 0)
+
+        # Update dog's location
+        _transition_prob = self.transition_prob.get((obs, action), {"Found item": 1.0})
+        
+        self._dog_location = self._room_to_observation[str(self.np_random.choice(
+            a=list(_transition_prob.keys()), 
+            p=list(_transition_prob.values())
+            ))]
+
+        # Update step counter
+        self._step_counter += 1
+
+        # Get observation and info
+        obs = self._get_obs()
+        info = self._get_info()
+        
+        # Check if agent reached the target        
+        terminated = True if self._observation_to_room[obs] == "Found item" else False
+
+        # Check if episode reached step limit
+        truncated = True if self._step_counter >= 500 else False
+
+        return obs, reward, terminated, truncated, info
+  
+    def _get_legal_actions(self):
+        """This method returns a list of legal actions for the current observation. 
+
+        Returns:
+            List of legal actions as strings
+        """
+
+        return self.legal_actions[self._observation_to_room[self._get_obs()]]
+
+    def check(self):
+        """This method catches many common issues with the Gymnasium environment
+
+        """
+
+        try:
+            check_env(self)
+            print("Environment passes all checks!")
+        except Exception as e:
+            print(f"Environment has issues: {e}")
 
 
-        # Define random policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
-        self.policy = {
-            "Room 1": {"Go to room 2": 1.0},
-            "Room 2": {"Go to room 1": 1/3, "Go to room 3": 1/3, "Go outside": 1/3},
-            "Room 3": {"Go to room 2": 0.5, "Search": 0.5},
-            "Outside": {"Go inside": 0.5, "Go outside": 0.5},
-            "Found item": {}
-        }
+class PolicyRandom():
+    
+    def __init__(self):       
+        pass
     
     def _get_action(self, env):
-        """Returns an action based on the policy
+        """Returns an action based on a policy in which legal actions are selected with equal probability. 
 
         Args:
             env: The environment action is taken in
 
+        Returns:
+            A legal action 
         """
 
-        # Get current state from environment 
-        state = env._get_obs()
+        # Get legal actions for current period of the environment
+        legal_actions = env._get_legal_actions()
 
-        # Select the state's policy
-        state_policy = self.policy[state]
-
-        # Select action based on state policy's probabilities
-        action = self.rnd_generator.choice(a=list(state_policy.keys()), p=list(state_policy.values()))
-        
-        # Print state -> action for debugging
-        # print(f"{state} -> {action}")
+        # Randomly select one of the legal actions (equal probability)
+        action = str(env.np_random.choice(legal_actions))
 
         return action
 
@@ -306,56 +322,56 @@ class PolicyRandom():
 class PolicyTD():
 
     def __init__(self):
+        
+        # Intialize lookup table for state-action values (Q-table)
         self.Q = dict()
 
-        # Optimal Q-Values (see Fig. 3.5 in "The Art of Reinforcement Learning" by Michael Hu)
-        self.Q = {
-            "Room 1": {"Go to room 2": 6.2},
-            "Room 2": {"Go to room 1": 3.6, "Go to room 3": 8.0, "Go outside": 6.5},
-            "Room 3": {"Go to room 2": 5.2, "Search": 10},
-            "Outside": {"Go outside": 4.8, "Go inside": 7.2}
-        }
-
     def _get_action(self, env, epsilon=0):
-        """Returns an action based on the policy
+        """Returns an action based on and epsilon-greedy policy.  
 
         Args:
             env: The environment action is taken in
+            epsilon: The probability of a taking a random action. If epsilon=0, the policy behaves greedy.
 
+        Returns:
+            A legal action 
         """
+        
+        # Get legal actions for current period of the environment
         legal_actions = env._get_legal_actions()
-        state = env._get_obs()
 
-        # print(f"state: {state}, legal action: {legal_actions}")
-
-        if epsilon > 0 and np.random.rand() < epsilon:
-            action = np.random.choice(legal_actions)
+        if epsilon > 0 and env.np_random.random() < epsilon:
+            # Draw action among all legal actions with equal probability
+            action = str(env.np_random.choice(legal_actions))
         else:
+            # Get state
+            state = env._get_obs()
             
+            # Initialize Q values if not available
             if state not in self.Q:
                 self.Q[state] = {}
-
             for a in legal_actions:
                 if a not in self.Q[state]:
                     self.Q[state][a] = 0
 
+            # Select action with the highest value             
             action = max(self.Q[state], key=self.Q[state].get)
         
-        return str(action)
+        return action
 
-    def _learn(self, env, discount, epsilon, learning_rate, num_updates, on_policy=True):
-        """Q-learning off-policy algorithm.
+    def _learn(self, env, discount, epsilon, learning_rate, num_updates, on_policy: Optional[bool] = True, seed: Optional[int] = None):
+        """Learning of the (optimal) state-action values (=Q values). 
+           The learned values are stored in the dictionary self.Q
 
         Args:
             env: a reinforcement learning environment, must have get_states(), reset(), and step() methods.
             discount: discount factor, must be 0 <= discount <= 1.
             epsilon: exploration rate for the e-greedy policy, must be 0 <= epsilon < 1.
             learning_rate: the learning rate when update step size
-            num_updates: number of updates to the value function.
+            num_updates: number of updates to the value function. Must be integer. 
+            on_policy: =True if behavior policy and target policy are the same (SARSA), =False if target policy is greedy (Q-Learning)
+            seed: The seed for the learning phase (this will be passed on the the environment)
 
-        Returns:
-            policy: the optimal policy based on the estimated (possible optimal) after run the search for num_updates.
-            Q: the estimated (possible optimal) state-action value function.
         """
 
         assert 0.0 <= discount <= 1.0
@@ -363,47 +379,180 @@ class PolicyTD():
         assert isinstance(num_updates, int)
 
         # Initialize state-action value function
-        print(f"Optimal Q: {self.Q}")
         self.Q = dict()
 
+        # Initialize conuter for number of updates
         i = 0
 
-        state, info = env.reset()
+        # Reset environment
+        state, info = env.reset(seed=seed)
+
         while i < num_updates:
-            # print(self.Q)
-            # Sample an action for state when following the e-greedy policy.
+
+            # Get action by following the policy.
             action = self._get_action(env, epsilon)
 
             # Take the action in the environment and observe successor state and reward.
             state_tp1, reward, terminated, truncated, info = env.step(action)
 
-            # Learning        
+            # Compute TD target (first part, immediate reward)       
             delta = reward
 
             if not terminated and not truncated:
                 # TP 1 action: On-policy = SARSA, Off-Policy = Q-Learning
-                action_tp1 = self._get_action(env) if on_policy else self._get_action(env, epsilon=0)
+                action_tp1 = self._get_action(env, epsilon) if on_policy else self._get_action(env, epsilon=0)
 
-                # Learning (second part, downstream reward)
+                # Compute TD target (second part, downstream reward)
                 self.Q[state_tp1] = self.Q.get(state_tp1, {})
                 self.Q[state_tp1][action_tp1] = self.Q[state_tp1].get(action_tp1, 0)
                 delta += discount * self.Q[state_tp1][action_tp1]
 
-            
+            # Update Q value
             self.Q[state] = self.Q.get(state, {})
             self.Q[state][action] = self.Q[state].get(action, 0) + learning_rate * (delta - self.Q[state].get(action, 0))
 
             if terminated or truncated:
-                state, info = env.reset()
+                # Update seed
+                seed = seed if seed is None else seed + 1
 
+                # Reset environment
+                state, info = env.reset(seed=seed)
+            else:
+                # Update state
+                state = state_tp1
+
+            # Update counter
             i += 1
 
+        # Round Q values and print results
         for s in self.Q:
             for a in self.Q[s]:
                 self.Q[s][a] = round(self.Q[s][a], 4)
 
-        print(self.Q)
+        print(f"Learned state-action values (Q): {self.Q}")
 
+
+class PolicySARSA():
+
+    def __init__(self):
+        
+        # Intialize lookup table for state-action values (Q-table)
+        self.Q = dict()
+
+    def _get_action(self, env, epsilon=0):
+        """Returns an action based on and epsilon-greedy policy.  
+
+        Args:
+            env: The environment action is taken in
+            epsilon: The probability of a taking a random action. If epsilon=0, the policy behaves greedy.
+
+        Returns:
+            A legal action 
+        """
+        
+        # Get legal actions for current period of the environment
+        legal_actions = env._get_legal_actions()
+        p = env.np_random.random()
+        
+        if epsilon > 0 and p < epsilon:
+            # Draw action among all legal actions with equal probability
+            action = str(env.np_random.choice(legal_actions))
+        
+        else:
+            # Get state
+            state = env._get_obs()
+            
+            # Initialize Q values if not available
+            if state not in self.Q:
+                self.Q[state] = {}
+            for a in legal_actions:
+                if a not in self.Q[state]:
+                    self.Q[state][a] = 0
+
+            # Select action with the highest value             
+            action = max(self.Q[state], key=self.Q[state].get)
+        
+        # print(f"p={p} -> action={action}")
+
+        return action
+
+    def _learn(self, env, discount, epsilon, learning_rate, num_updates, seed: Optional[int] = None):
+         """Learning of the (optimal) state-action values (=Q values) via on-policy SARSA. 
+           The learned values are stored in the dictionary self.Q
+
+        Args:
+            env: a reinforcement learning environment, must have get_states(), reset(), and step() methods.
+            discount: discount factor, must be 0 <= discount <= 1.
+            epsilon: exploration rate for the e-greedy policy, must be 0 <= epsilon < 1.
+            learning_rate: the learning rate when update step size
+            num_updates: number of updates to the value function. Must be integer. 
+            on_policy: =True if behavior policy and target policy are the same (SARSA), =False if target policy is greedy (Q-Learning)
+            seed: The seed for the learning phase (this will be passed on the the environment)
+
+        """
+         
+         td_learning(policy=self, env=env, discount=discount, epsilon=epsilon, learning_rate=learning_rate, 
+                    num_updates=num_updates, seed=seed, on_policy=True)
+       
+
+class PolicyQLearning():
+
+    def __init__(self):
+        
+        # Intialize lookup table for state-action values (Q-table)
+        self.Q = dict()
+
+    def _get_action(self, env, epsilon=0):
+        """Returns an action based on and epsilon-greedy policy.  
+
+        Args:
+            env: The environment action is taken in
+            epsilon: The probability of a taking a random action. If epsilon=0, the policy behaves greedy.
+
+        Returns:
+            A legal action 
+        """
+        
+        # Get legal actions for current period of the environment
+        legal_actions = env._get_legal_actions()
+
+        if epsilon > 0 and env.np_random.random() < epsilon:
+            # Draw action among all legal actions with equal probability
+            action = str(env.np_random.choice(legal_actions))
+        else:
+            # Get state
+            state = env._get_obs()
+            
+            # Initialize Q values if not available
+            if state not in self.Q:
+                self.Q[state] = {}
+            for a in legal_actions:
+                if a not in self.Q[state]:
+                    self.Q[state][a] = 0
+
+            # Select action with the highest value             
+            action = max(self.Q[state], key=self.Q[state].get)
+        
+        return action
+
+    def _learn(self, env, discount, epsilon, learning_rate, num_updates, seed: Optional[int] = None):
+         """Learning of the (optimal) state-action values (=Q values) via off-policy Q-learning. 
+           The learned values are stored in the dictionary self.Q
+
+        Args:
+            env: a reinforcement learning environment, must have get_states(), reset(), and step() methods.
+            discount: discount factor, must be 0 <= discount <= 1.
+            epsilon: exploration rate for the e-greedy policy, must be 0 <= epsilon < 1.
+            learning_rate: the learning rate when update step size
+            num_updates: number of updates to the value function. Must be integer. 
+            on_policy: =True if behavior policy and target policy are the same (SARSA), =False if target policy is greedy (Q-Learning)
+            seed: The seed for the learning phase (this will be passed on the the environment)
+
+        """
+         
+         td_learning(policy=self, env=env, discount=discount, epsilon=epsilon, learning_rate=learning_rate, 
+                    num_updates=num_updates, seed=seed, on_policy=False)
+       
 
 def compute_returns(rewards, discount):
     """Compute returns for every time step in the episode trajectory.
@@ -428,7 +577,7 @@ def compute_returns(rewards, discount):
     return returns
 
 
-def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True):
+def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True, seed: Optional[int] = None):
     """Run Monte Carlo policy evaluation for state value function.
 
     Args:
@@ -452,7 +601,9 @@ def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True):
     for _ in range(num_episodes):
         # Sample an episode trajectory using the given policy.
         episode = []
-        state, info = env.reset()
+        state, info = env.reset(seed=seed)
+        seed = seed if seed is None else seed + 1
+
         while True:
             # Get action when following the policy.
             action = policy._get_action(env)
@@ -462,8 +613,6 @@ def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True):
             episode.append((state, action, reward))
             state = state_tp1
             if terminated or truncated:
-                # if truncated:
-                #     print("truncated")
                 break
 
         # Unpack list of tuples into separate lists.
@@ -475,6 +624,7 @@ def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True):
 
         # Loop over all state in the episode.
         for t, state in enumerate(states):
+
             G_t = returns[t]
             # Check if this is the first time state visited in the episode.
             if first_visit and state in states[:t]:
@@ -488,73 +638,107 @@ def mc_policy_evaluation(env, policy, discount, num_episodes, first_visit=True):
     for state in V:
         V[state] = round(V[state], 2)
 
-    print(f"State value function after {num_episodes} iterations: {V}")
+    print(f"MC Policy evaluation results of state value function after {num_episodes} iterations: {V}")
+
+
+def td_learning(policy, env, discount, epsilon, learning_rate, num_updates, on_policy: Optional[bool] = True, seed: Optional[int] = None):
+    """Learning of the (optimal) state-action values (=Q values). 
+        The learned values are stored in the dictionary policy.Q
+
+    Args:
+        policy: a policy class in which the state-action values are stored and in which the decision making is described
+        env: a reinforcement learning environment, must have get_states(), reset(), and step() methods.
+        discount: discount factor, must be 0 <= discount <= 1.
+        epsilon: exploration rate for the e-greedy policy, must be 0 <= epsilon < 1.
+        learning_rate: the learning rate when update step size
+        num_updates: number of updates to the value function. Must be integer. 
+        on_policy: =True if behavior policy and target policy are the same (SARSA), =False if target policy is greedy (Q-Learning)
+        seed: The seed for the learning phase (this will be passed on the the environment)
+
+    """
+
+    # Initialize state-action value function
+    policy.Q = dict()
+
+    # Initialize conuter for number of updates
+    i = 0
+
+    # Reset environment
+    state, info = env.reset(seed=seed)
+
+    # Get initial action by following the policy.
+    action = policy._get_action(env, epsilon)
+
+    while i < num_updates:
+
+        # Take the action in the environment and observe successor state and reward.
+        state_tp1, reward, terminated, truncated, info = env.step(action)
+
+        # Compute TD target (first part, immediate reward)       
+        delta = reward
+
+        if not terminated and not truncated:
+            # TP 1 action: On-policy = SARSA, Off-Policy = Q-Learning
+            action_tp1 = policy._get_action(env, epsilon) if on_policy else policy._get_action(env, epsilon=0)
+
+            # Compute TD target (second part, downstream reward)
+            policy.Q[state_tp1] = policy.Q.get(state_tp1, {})
+            policy.Q[state_tp1][action_tp1] = policy.Q[state_tp1].get(action_tp1, 0)
+            delta += discount * policy.Q[state_tp1][action_tp1]
+
+        # Update Q value
+        policy.Q[state] = policy.Q.get(state, {})
+        policy.Q[state][action] = policy.Q[state].get(action, 0) + learning_rate * (delta - policy.Q[state].get(action, 0))
+
+        if terminated or truncated:
+            # Update seed
+            seed = seed if seed is None else seed + 1
+
+            # Reset environment
+            state, info = env.reset(seed=seed)
+
+            # Get initial action by following the policy.
+            action = policy._get_action(env, epsilon)
+
+        else:
+            # Update state
+            state = state_tp1
+            
+            if on_policy:
+                # Get action via TD1 action (as this was selected via the same policy).
+                action = copy.deepcopy(action_tp1)
+            else: 
+                # Get action by following the policy.
+                action = policy._get_action(env, epsilon)
+
+        # Update counter
+        i += 1
+        print(f"Q after {i} iterations: {policy.Q}")
+
 
 if __name__ == "__main__":
 
+    # Load data
     legal_actions, reward, transition_prob = get_data_textbook()
 
-    env = ServiceDogEnv(legal_actions, reward, transition_prob)
-    policy = PolicyRandom(seed=2506)
-    # policy = PolicyTD()
-    # policy._learn(env, discount=0.9, epsilon=0.3, learning_rate=0.01, num_updates=10000, on_policy=False)
-
-    # mc_policy_evaluation(env, policy, discount=0.9, num_episodes=2000, first_visit=True)
-
-    # Reset environment
-    env.reset()
-
-    # Print information
-    print(f"Observation: {env._get_obs()}, info: {env._get_info()}")
+    # Create environment
+    env = EnvServiceDog(legal_actions, reward, transition_prob)
+    # env = EnvServiceDogGym(legal_actions, reward, transition_prob)
     
-    # Select action
-    action = policy._get_action(env)
+    # Random policy
+    print("RANDOM POLICY")
+    policy = PolicyRandom()
+    # mc_policy_evaluation(env, policy, discount=0.9, num_episodes=1000, first_visit=True, seed=2506)
     
-    # Transition via dynamic model/function
-    env.step(action)
+    # SARSA
+    print("TD SARSA")
+    policy = PolicySARSA()
+    policy._learn(env, discount=0.9, epsilon=0.4, learning_rate=0.01, num_updates=500, seed=2506)
+    print(policy.Q)
+    # mc_policy_evaluation(env, policy, discount=0.9, num_episodes=1000, first_visit=True, seed=2506)
 
-    # Print information
-    print(f"Observation: {env._get_obs()}, info: {env._get_info()}")
-
-    # policy.test(env=env, num_episodes=10000)
-
-    # # Create model
-    # # Reset environment to start a new episode
-    # env = ServiceDogEnvGym()
-
-    # # This will catch many common issues
-    # # try:
-    # #     check_env(env)
-    # #     print("Environment passes all checks!")
-    # # except Exception as e:
-    # #     print(f"Environment has issues: {e}")
-    # #     # Reset environment to start a new episode
-        
-    # observation, info = env.reset()
-    # # observation: what the agent can "see" - cart position, velocity, pole angle, etc.
-    # # info: extra debugging information (usually not needed for basic learning)
-    
-    # dog_sequence = [observation]
-
-    # episode_over = False
-    # total_reward = 0
-
-    # while not episode_over:
-
-    #     # Choose an action: 0 = push cart left, 1 = push cart right
-    #     action = env.action_space.sample()  # Random action for now - real agents will be smarter!
-
-    #     # Take the action and see what happens
-    #     observation, reward, terminated, truncated, info = env.step(action)
-
-    #     dog_sequence.append(observation)
-
-    #     # reward: +1 for each step the pole stays upright
-    #     # terminated: True if pole falls too far (agent failed)
-    #     # truncated: True if we hit the time limit (500 steps)
-
-    #     total_reward += reward
-    #     episode_over = terminated or truncated
-
-    # print(f"Episode finished! Total reward: {total_reward} after {steps} steps.")
-    # env.close()
+    # Q-Learning
+    print("TD Q-Learning")
+    policy = PolicyQLearning()
+    # policy._learn(env, discount=0.9, epsilon=0.4, learning_rate=0.01, num_updates=20000, seed=2506)
+    # mc_policy_evaluation(env, policy, discount=0.9, num_episodes=1000, first_visit=True, seed=2506)

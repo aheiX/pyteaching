@@ -1,7 +1,13 @@
+import gymnasium as gym
+from gymnasium.utils.env_checker import check_env
+from typing import Optional
 
-class Environment():
+class Environment(gym.Env):
 
     def __init__(self):
+        # Initialize from gymansium environment
+        super().__init__()
+
         # Define what the agent can observe (state space). This variable can be of any type (e.g., list, dict, tuple, etc.)
         self.observation_space = ["Obs 1", "Obs 2"]
 
@@ -30,13 +36,14 @@ class Environment():
 
         return {"info": True}
 
-    def reset(self):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         """Start a new episode.
 
         Returns:
-            tuple: (observation, info) for the initial state
+            tuple: (observation, info) for the initial period
         """
-        # Include code to reset the environment (e.g., set seed, set location, etc.)    
+        # IMPORTANT: Must call this first to seed the random number generator (called via self.np_random)
+        super().reset(seed=seed)  
 
         observation = self._get_obs()
         info = self._get_info()
@@ -70,6 +77,17 @@ class Environment():
         info = self._get_info()
 
         return observation, reward, terminated, truncated, info
+    
+    def check(self):
+        """This method catches many common issues with the Gymnasium environment
+
+        """
+
+        try:
+            check_env(self)
+            print("Environment passes all checks!")
+        except Exception as e:
+            print(f"Environment has issues: {e}")
 
 
 class Policy():

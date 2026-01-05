@@ -1,10 +1,29 @@
+def get_policy_random():
+    """
+    Creates a random policy for the service dog example used in "The Art of Reinforcement Learning" by Michael Hu
+
+    Returns:
+        policy: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
+    """
+
+    # Policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
+    policy_random = {
+        "Room 1": {"Go to room 2": 1.0},
+        "Room 2": {"Go to room 1": 1/3, "Go to room 3": 1/3, "Go outside": 1/3},
+        "Room 3": {"Go to room 2": 0.5, "Search": 0.5},
+        "Outside": {"Go inside": 0.5, "Go outside": 0.5},
+        "Found item": {}
+    }
+
+    return policy_random
+
+
 def get_data_textbook():
     """
     Creates the model-based data for the service dog example used in "The Art of Reinforcement Learning" by Michael Hu
 
     Returns:
         states: The set of all possible configurations or observations of the environment that we can be in.
-        policy: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
         reward: Reward of taking action 𝑎 in state 𝑠 
         transition_prob: The transition probability from the current state 𝑠 to its successor state 𝑠′ 
     """
@@ -12,14 +31,6 @@ def get_data_textbook():
     # State space [𝒮]: The set of all possible configurations or observations of the environment that we can be in.
     states = ["Room 1", "Room 2", "Room 3", "Outside", "Found item"]
 
-    # Policy [𝜋(a|s)]: The probability to take action 𝑎 in the current state 𝑠 under policy 𝜋
-    policy = {
-        "Room 1": {"Go to room 2": 1.0},
-        "Room 2": {"Go to room 1": 1/3, "Go to room 3": 1/3, "Go outside": 1/3},
-        "Room 3": {"Go to room 2": 0.5, "Search": 0.5},
-        "Outside": {"Go inside": 0.5, "Go outside": 0.5},
-        "Found item": {}
-    }
 
     # Reward [R(s,a)]: Reward of taking action 𝑎 in state 𝑠 
     reward = {("Room 1", "Go to room 2"): -1,
@@ -45,7 +56,7 @@ def get_data_textbook():
         ("Outside", "Go inside"): {"Room 2": 1.0} 
     }
 
-    return states, policy, reward, transition_prob
+    return states, reward, transition_prob
 
 
 def policy_evaluation(states, policy, reward, transition_prob, discount, delta_threshold=0.00001):
@@ -189,7 +200,14 @@ def value_iteration(states, reward, transition_prob, discount, delta_threshold=0
 
 
 if __name__ == "__main__":
-    states, policy, reward, transition_prob = get_data_textbook()
+    # Load data
+    states, reward, transition_prob = get_data_textbook()
+    policy = get_policy_random()
 
+    # Policy evaluation
+    print("Policy evaluation (random policy)")
     policy_evaluation(states, policy, reward, transition_prob, discount=0.9)
+    
+    # Value iteration
+    print("Value iteration (optimal policy)")
     value_iteration(states, reward, transition_prob, discount=0.9)
